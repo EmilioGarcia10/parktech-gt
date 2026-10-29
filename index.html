@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Park-Tech GT: diseño lógico y simulación de un parqueo automatizado de 3 niveles. Electrónica Digital, Universidad Mariano Gálvez.">
+<title>Park-Tech GT</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: informe técnico de una columna (como una hoja de laboratorio) con señalética de parqueo:
+   franjas azul "P", etiquetas condensadas en mayúsculas y LEDs semánticos verde/rojo/ámbar. */
+:root{
+  --bg:#f5f6f3; --paper:#ffffff; --ink:#18212e; --muted:#566273; --rule:#d9dde3;
+  --sign:#1d4f9c; --sign-ink:#ffffff; --amber:#e8a317; --code-bg:#eef1f6;
+  --ok:#1f9d55; --stop:#d32f2f; --warn:#e07b00; --off:#3b4250;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10151d; --paper:#161d27; --ink:#e6eaf0; --muted:#9aa6b6; --rule:#2a3442;
+  --sign:#3f7ad6; --sign-ink:#ffffff; --amber:#f0b43a; --code-bg:#1d2633;
+  --ok:#3ccf7d; --stop:#ff5c5c; --warn:#ff9f2e; --off:#4a5466; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10151d; --paper:#161d27; --ink:#e6eaf0; --muted:#9aa6b6; --rule:#2a3442;
+  --sign:#3f7ad6; --sign-ink:#ffffff; --amber:#f0b43a; --code-bg:#1d2633;
+  --ok:#3ccf7d; --stop:#ff5c5c; --warn:#ff9f2e; --off:#4a5466; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+h1,h2,h3,h4{font-family:var(--display);line-height:1.1;text-wrap:balance;margin:0}
+h2{font-size:2.1rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+h3{font-size:1.45rem;font-weight:600;margin-top:2rem}
+h4{font-size:1.15rem;font-weight:600;margin-top:1.4rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+p{margin:.6rem 0;max-width:70ch}
+a{color:var(--sign)}
+code,.eq{font-family:var(--mono);font-size:.92em}
+.eq{display:block;background:var(--code-bg);border-left:4px solid var(--sign);padding:.6rem .9rem;margin:.7rem 0;overflow-x:auto;white-space:pre;border-radius:0 6px 6px 0}
+figure{margin:1rem 0;padding:0}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:#fff}
+figcaption{font-size:.85rem;color:var(--muted);margin-top:.35rem}
+.tbl{overflow-x:auto;margin:.8rem 0}
+table{border-collapse:collapse;font-size:.92rem;font-variant-numeric:tabular-nums;min-width:100%}
+th,td{border:1px solid var(--rule);padding:.35rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code-bg);font-weight:600}
+td.c,th.c{text-align:center}
+.ph{background:var(--amber);color:#1b1300;padding:0 .3rem;border-radius:3px;font-weight:600}
+.lbl{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-weight:600;font-size:.95rem;color:var(--muted)}
+
+/* Cabecera tipo letrero de parqueo */
+.top{background:var(--sign);color:var(--sign-ink)}
+.top .wrap{padding-block:28px 26px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
+.plate{width:92px;height:92px;border:5px solid var(--sign-ink);border-radius:12px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:4.2rem;line-height:1}
+.top h1{font-size:clamp(2.4rem,7vw,4rem);font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+.top p{margin:.2rem 0 0;color:var(--sign-ink);opacity:.9;max-width:none}
+.facts{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;font-family:var(--display);font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase}
+.facts span b{color:var(--amber)}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--rule)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+nav.toc .wrap{padding-block:8px;display:flex;gap:6px 16px;flex-wrap:wrap;font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:1rem}
+nav.toc a{text-decoration:none;color:var(--ink)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--sign);text-decoration:underline}
+section{padding-top:44px}
+.sechead{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--ink);padding-bottom:6px;margin-bottom:14px}
+.sechead .n{font-family:var(--display);font-weight:700;font-size:2.1rem;color:var(--sign)}
+.card{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:18px}
+.piece{border-top:6px solid var(--sign);margin-top:28px}
+.piece .who{font-size:.9rem;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
+.grid2>*{min-width:0}
+.note{border:1px dashed var(--amber);border-radius:8px;padding:10px 14px;background:color-mix(in srgb,var(--amber) 10%,var(--paper))}
+
+/* Simulador */
+.sim{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.sim{grid-template-columns:1fr}}
+.panel{background:#0f141b;color:#dfe6ee;border-radius:12px;padding:16px;border:1px solid #2a3442}
+.panel h4{color:#9fb2c8;margin:0 0 8px}
+.row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.led{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.85rem}
+.led i{width:14px;height:14px;border-radius:50%;background:#353d4a;box-shadow:inset 0 0 0 2px #00000055;display:inline-block}
+.led.on.g i{background:#33d17a;box-shadow:0 0 10px #33d17a}
+.led.on.r i{background:#ff4d4d;box-shadow:0 0 10px #ff4d4d}
+.led.on.a i{background:#ffad33;box-shadow:0 0 10px #ffad33}
+.levels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.lvl{background:#18202b;border-radius:8px;padding:10px}
+.lvl .t{font-family:var(--display);letter-spacing:.06em;text-transform:uppercase;color:#9fb2c8}
+.slots{display:flex;gap:4px;margin:6px 0}
+.slots b{flex:1;height:16px;border-radius:3px;background:#2a3442}
+.slots b.f{background:#4f8be0}
+.seg{display:flex;gap:14px;align-items:center}
+.seg svg{width:64px;height:auto}
+.ctrl{display:flex;flex-direction:column;gap:12px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font-family:var(--display);font-size:1rem;letter-spacing:.05em;text-transform:uppercase;font-weight:600;border:2px solid var(--sign);background:var(--paper);color:var(--ink);padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover{background:var(--code-bg)}
+button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+button.prim{background:var(--sign);color:var(--sign-ink)}
+button.tog[aria-pressed="true"]{background:var(--stop);border-color:var(--stop);color:#fff}
+button.tog.pg[aria-pressed="true"]{background:var(--ok);border-color:var(--ok)}
+.log{font-family:var(--mono);font-size:.82rem;background:var(--code-bg);border-radius:8px;padding:8px 10px;max-height:150px;overflow:auto;white-space:pre-wrap}
+.clk i{animation:blink 1s steps(2,start) infinite}
+/* Presentación y archivos */
+.deck{display:grid;gap:10px}
+.stage{background:#0f141b;border-radius:10px;overflow:hidden;border:1px solid var(--rule)}
+.stage img{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.deckbar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.thumbs .th{padding:0;border:2px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--paper)}
+.thumbs .th img{display:block;width:100%;height:auto}
+.thumbs .th[aria-current="true"]{border-color:var(--amber)}
+.concl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin-top:10px}
+.concl>*{min-width:0}.concl p{margin:.3rem 0}
+.recs{display:grid;gap:10px;padding-left:1.4rem;max-width:80ch}
+.recs li{padding-left:.3rem}
+.files{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:12px;margin-bottom:8px}
+a.btn{display:inline-block;font-family:var(--display);font-size:1rem;letter-spacing:.05em;text-transform:uppercase;font-weight:600;border:2px solid var(--sign);padding:6px 12px;border-radius:7px;text-decoration:none}
+a.btn.prim{background:var(--sign);color:var(--sign-ink)}
+.file a.btn{margin-top:auto;align-self:flex-start}
+.file{display:flex;flex-direction:column;gap:6px;min-width:0}.file p{margin:0}.file button{margin-top:auto;align-self:flex-start}
+@keyframes blink{to{background:#ffad33;box-shadow:0 0 8px #ffad33}}
+@media (prefers-reduced-motion:reduce){.clk i{animation:none}}
+.dl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.script{display:grid;gap:10px}
+.script .s{border-left:4px solid var(--amber);padding:8px 12px;background:var(--paper);border-radius:0 8px 8px 0}
+.script .s b{font-family:var(--display);letter-spacing:.05em;text-transform:uppercase}
+footer{margin-top:50px;color:var(--muted);font-size:.85rem}
+@media print{
+  nav.toc,#simulador,#presentacion,.noprint,button,a.btn{display:none!important}
+  body{background:#fff;color:#000;font-size:11pt}
+  .top{background:#fff;color:#000;border-bottom:4px solid #1d4f9c}
+  .top p,.facts{color:#000}
+  .plate{border-color:#1d4f9c;color:#1d4f9c}
+  section{break-before:page;padding-top:0}
+  #caratula{break-before:auto}
+  .piece{break-before:auto;border:none;padding:0}
+  .card{border:none;padding:0}
+  figure,.eq,tr{break-inside:avoid}
+  h3,h4{break-after:avoid}
+}
+</style>
+<style>img{max-width:100%}[hidden]{display:none!important}body{margin:0}</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <div class="plate" aria-hidden="true">P</div>
+    <div>
+      <h1>Park-Tech GT</h1>
+      <p>Diseño lógico y simulación de un parqueo automatizado de tres niveles · Electrónica Digital · Proyecto final</p>
+      <div class="facts"><span><b>12</b> espacios</span><span><b>3</b> niveles × 4</span><span><b>4</b> módulos</span><span>Reloj <b>1&nbsp;Hz</b></span><span>Flip-Flops <b>D</b></span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contenido">
+  <div class="wrap">
+    <a href="#caratula">Carátula</a><a href="#presentacion">Presentación</a><a href="#simulador">Simulador</a><a href="#memoria">Memoria de cálculo</a><a href="#arquitectura">Arquitectura</a><a href="#pregunta">Pregunta integradora</a><a href="#recomendaciones">Recomendaciones</a><a href="#archivos">Archivos</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ===================== 1. CARATULA ===================== -->
+<section id="caratula">
+  <div class="sechead"><span class="n">1</span><h2>Carátula y roles</h2></div>
+  <div class="card">
+    <div class="tbl"><table>
+      <tr><th>Universidad</th><td>Universidad Mariano Gálvez de Guatemala</td></tr>
+      <tr><th>Curso</th><td>Electrónica Digital</td></tr>
+      <tr><th>Proyecto</th><td>Park-Tech GT: control y simulación de un parqueo automatizado de 3 niveles</td></tr>
+      <tr><th>Fecha</th><td>Octubre de 2026</td></tr>
+    </table></div>
+    <h4>Distribución de roles por pieza</h4>
+    <div class="tbl"><table>
+      <tr><th>Pieza</th><th>Módulo</th><th>Responsable</th></tr>
+      <tr><td>1</td><td>Detección, conteo y disponibilidad general</td><td>Emilio García (0900-23-15301)</td></tr>
+      <tr><td>2</td><td>Gestión y señalización por niveles</td><td>Equipo Park-Tech GT</td></tr>
+      <tr><td>3</td><td>Extracción y ventilación de emergencia por CO2</td><td>Cristian Alexander González Castillo</td></tr>
+      <tr><td>4</td><td>Integración, reloj y simulación general</td><td>Emilio García y equipo</td></tr>
+    </table></div>
+    <p class="lbl">Herramienta de simulación</p>
+    <p>Logisim-evolution 3.9 (compatible con 5.0). La sección 7.3 del enunciado admite Logisim para el archivo integrado. La primera versión de la Pieza 2 se hizo en Livewire (archivo <code>FASE2_PROYECTO.lvw</code>). Para integrar las cuatro piezas en un solo archivo, esa pieza se reconstruyó en Logisim con la misma estructura: tres Flip-Flops D por nivel.</p>
+  </div>
+</section>
+
+<!-- ===================== 2. PRESENTACION ===================== -->
+<section id="presentacion">
+  <div class="sechead"><span class="n">2</span><h2>Presentación del proyecto</h2></div>
+  <div class="deck">
+    <div class="stage" tabindex="0" aria-label="Diapositiva actual; use las flechas para avanzar">
+      <img id="slideImg" src="img/slides/d-01.jpg" alt="Diapositiva 1 de 12" width="1280" height="720">
+    </div>
+    <div class="deckbar">
+      <button id="sPrev" aria-label="Diapositiva anterior">← Anterior</button>
+      <span class="lbl" id="sNum" aria-live="polite">1 / 12</span>
+      <button id="sNext" class="prim" aria-label="Diapositiva siguiente">Siguiente →</button>
+    </div>
+    <div class="thumbs" id="thumbs" aria-label="Todas las diapositivas"></div>
+  </div>
+  <p>Las 12 diapositivas que se usaron en la exposición. La demostración en vivo se hizo sobre el archivo integrado de Logisim (diapositiva 10). La presentación editable, con notas del orador, está en la sección <a href="#archivos">Archivos</a>.</p>
+</section>
+
+<!-- ===================== SIMULADOR ===================== -->
+<section id="simulador">
+  <div class="sechead"><span class="n">▶</span><h2>Simulador del sistema</h2></div>
+  <p>Este modelo reproduce en el navegador las mismas ecuaciones de los cuatro módulos. Cada botón equivale a un evento de sensor ya acondicionado por la Pieza 4, es decir, un pulso de un ciclo de CLKSINC. La simulación oficial es el archivo de Logisim de la sección 7.</p>
+  <div class="sim">
+    <div class="panel" aria-live="polite">
+      <h4>Panel maestro</h4>
+      <div class="seg">
+        <svg viewBox="0 0 60 100" role="img" aria-label="Display de 7 segmentos con el conteo global"><g id="seg7"></g></svg>
+        <div>
+          <div class="row"><span class="led clk on a"><i></i>CLKSINC 1 Hz</span></div>
+          <div class="row" style="margin-top:6px"><span class="led g" id="L_ME"><i></i>ME</span><span class="led r" id="L_LLENO"><i></i>LLENO</span></div>
+          <div style="font-family:var(--mono);font-size:.85rem;margin-top:6px">Conteo global: <b id="T_CNT">0</b> / 12 · Q3..Q0 = <b id="T_BIN">0000</b></div>
+        </div>
+      </div>
+      <div class="levels" id="levels"></div>
+      <h4 style="margin-top:12px">Tablero de entrada</h4>
+      <div class="row"><span class="led g" id="L_IR1"><i></i>IR N1</span><span class="led g" id="L_IR2"><i></i>IR N2</span><span class="led g" id="L_IR3"><i></i>IR N3</span><span class="led r" id="L_SE"><i></i>SIN ESPACIO</span></div>
+      <h4 style="margin-top:12px">Ventilación</h4>
+      <div class="row"><span class="led g" id="L_V1"><i></i>V1 baja</span><span class="led a" id="L_V2"><i></i>V2 alta</span><span class="led r" id="L_AL"><i></i>ALARMA</span></div>
+    </div>
+    <div class="ctrl">
+      <div><p class="lbl">Vehículos</p>
+        <div class="btns"><button class="prim" id="b_in">Llega un carro</button><button id="b_o1">Sale del nivel 1</button><button id="b_o2">Sale del nivel 2</button><button id="b_o3">Sale del nivel 3</button></div></div>
+      <div><p class="lbl">Sensores de CO2 y presencia</p>
+        <div class="btns"><button class="tog" id="g1" aria-pressed="false">C1</button><button class="tog" id="g2" aria-pressed="false">C2</button><button class="tog" id="g3" aria-pressed="false">C3</button><button class="tog" id="g4" aria-pressed="false">C4</button><button class="tog pg" id="gp" aria-pressed="false">PGLOB</button></div></div>
+      <div><p class="lbl">Casos de prueba</p>
+        <div class="btns"><button id="b_pi">Pregunta integradora</button><button id="b_rst">Reset (R)</button></div></div>
+      <div class="log" id="log" aria-live="polite">Sistema en reset: 0 vehículos. Presioná "Llega un carro".</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 2. MEMORIA ===================== -->
+<section id="memoria">
+  <div class="sechead"><span class="n">3</span><h2>Memoria de cálculo por módulo</h2></div>
+  <p>Los cuatro módulos respetan el mismo contrato de señales, y todos los Flip-Flops son tipo D, activos en el flanco de subida de <code>CLKSINC</code>. Los sensores físicos entran únicamente a la Pieza 4. Las Piezas 1 y 2 reciben pulsos limpios que duran un solo ciclo, y la Pieza 3 es combinacional.</p>
+
+  <!-- ---------- PIEZA 1 ---------- -->
+  <article class="card piece" id="pieza1">
+    <h3>Pieza 1 · Detección, conteo y disponibilidad general</h3>
+    <p class="who">Responsable: Emilio García · Archivo: <code>pieza1_conteo_global.circ</code></p>
+    <div class="tbl"><table>
+      <tr><th>Señal</th><th>Tipo</th><th>Significado</th></tr>
+      <tr><td><code>PE</code>, <code>PS</code></td><td>Entrada</td><td>Pulso de 1 ciclo cuando un vehículo pasa por el sensor de entrada o de salida (viene de la Pieza 4)</td></tr>
+      <tr><td><code>SE</code></td><td>Entrada</td><td>Sensor de entrada limpio, en nivel (vehículo presente)</td></tr>
+      <tr><td><code>R</code>, <code>CLKSINC</code></td><td>Entrada</td><td>Reset general (asíncrono a 0) y reloj sincronizado de 1 Hz</td></tr>
+      <tr><td><code>Q3..Q0</code></td><td>Salida</td><td>Conteo global en binario (0000 a 1100), que alimenta el display</td></tr>
+      <tr><td><code>ME</code>, <code>LLENO</code></td><td>Salida</td><td>Motor de la talanquera de entrada (1 = abrir) y luz roja de capacidad máxima</td></tr>
+    </table></div>
+
+    <h4>Pregunta guía 1 · Tabla de estados del contador ascendente/descendente 0–12</h4>
+    <p>Se usan cuatro Flip-Flops D, porque 12 necesita 4 bits. La variable de sentido es <code>M = PE</code> (1 = sube, 0 = baja). El contador solo cambia cuando la habilitación <code>EN</code> vale 1. Los estados 13, 14 y 15 nunca se alcanzan y se toman como <em>no importa</em> (X), igual que "subir desde 12" y "bajar desde 0", que <code>EN</code> bloquea.</p>
+    <div class="tbl"><table>
+      <tr><th class="c">Estado</th><th class="c">Q3 Q2 Q1 Q0</th><th class="c">Siguiente si sube (M=1)</th><th class="c">Siguiente si baja (M=0)</th></tr>
+      <tr><td class="c">0</td><td class="c">0000</td><td class="c">0001</td><td class="c">X (bloqueado: CERO)</td></tr>
+      <tr><td class="c">1</td><td class="c">0001</td><td class="c">0010</td><td class="c">0000</td></tr>
+      <tr><td class="c">2</td><td class="c">0010</td><td class="c">0011</td><td class="c">0001</td></tr>
+      <tr><td class="c">3</td><td class="c">0011</td><td class="c">0100</td><td class="c">0010</td></tr>
+      <tr><td class="c">4</td><td class="c">0100</td><td class="c">0101</td><td class="c">0011</td></tr>
+      <tr><td class="c">5</td><td class="c">0101</td><td class="c">0110</td><td class="c">0100</td></tr>
+      <tr><td class="c">6</td><td class="c">0110</td><td class="c">0111</td><td class="c">0101</td></tr>
+      <tr><td class="c">7</td><td class="c">0111</td><td class="c">1000</td><td class="c">0110</td></tr>
+      <tr><td class="c">8</td><td class="c">1000</td><td class="c">1001</td><td class="c">0111</td></tr>
+      <tr><td class="c">9</td><td class="c">1001</td><td class="c">1010</td><td class="c">1000</td></tr>
+      <tr><td class="c">10</td><td class="c">1010</td><td class="c">1011</td><td class="c">1001</td></tr>
+      <tr><td class="c">11</td><td class="c">1011</td><td class="c">1100</td><td class="c">1010</td></tr>
+      <tr><td class="c">12</td><td class="c">1100</td><td class="c">X (bloqueado: LLENO)</td><td class="c">1011</td></tr>
+      <tr><td class="c">13–15</td><td class="c">1101–1111</td><td class="c">X</td><td class="c">X</td></tr>
+    </table></div>
+    <p>En un Flip-Flop D, la entrada de excitación es igual al estado siguiente (<code>D = Q⁺</code>). Por eso las columnas "siguiente" de la tabla son directamente los valores que deben tomar D3..D0.</p>
+    <figure><img src="img/p1_estados.png" alt="Diagrama de transición de estados del contador global de 0 a 12"><figcaption>Figura 1. Diagrama de transición de estados del contador global.</figcaption></figure>
+
+    <h4>Lógica de control (habilitación y saturación)</h4>
+    <span class="eq">LLENO = Q3·Q2            (12 = 1100; los estados 13–15 son X)
+CERO  = Q3'·Q2'·Q1'·Q0'
+SUBIR = PE·PS'·LLENO'
+BAJAR = PS·PE'·CERO'
+EN    = SUBIR + BAJAR      M = PE</span>
+    <p>Si llegan <code>PE</code> y <code>PS</code> en el mismo ciclo, <code>EN = 0</code> y el conteo no cambia: entró un carro y salió otro.</p>
+    <figure><img src="img/p1_kmap_lleno_cero.png" alt="Mapas de Karnaugh de LLENO y CERO"><figcaption>Figura 2. LLENO aprovecha los estados 13–15 como "no importa" y queda en un solo término.</figcaption></figure>
+
+    <h4>Pregunta guía 2 · Mapas de Karnaugh de las entradas de excitación</h4>
+    <p>Cada función de siguiente estado <code>F = f(Q3, Q2, Q1, Q0, M)</code> tiene 5 variables. El mapa se arma con dos mapas de 4 variables, uno para <code>M = 0</code> y otro para <code>M = 1</code>. Las celdas en la misma posición de ambos mapas son adyacentes.</p>
+    <figure><img src="img/p1_kmap_F3.png" alt="Mapa de Karnaugh de F3"><figcaption>Figura 3. F3 (bit más significativo).</figcaption></figure>
+    <figure><img src="img/p1_kmap_F2.png" alt="Mapa de Karnaugh de F2"><figcaption>Figura 4. F2.</figcaption></figure>
+    <figure><img src="img/p1_kmap_F1.png" alt="Mapa de Karnaugh de F1"><figcaption>Figura 5. F1.</figcaption></figure>
+    <span class="eq">F3 = M·Q3 + Q3·Q0 + Q3·Q1 + Q3·Q2 + M·Q2·Q1·Q0
+F2 = M·Q2·Q1' + M'·Q2·Q0 + Q2·Q1·Q0' + M·Q2'·Q1·Q0 + M'·Q2'·Q1'·Q0'
+F1 = M·Q1'·Q0 + M·Q1·Q0' + M'·Q1·Q0 + M'·Q1'·Q0'      = M ⊙ (Q1 ⊕ Q0)
+F0 = Q0'                                               (el bit 0 siempre cambia)</span>
+    <p>Como el Flip-Flop D no tiene entrada de habilitación, cada bit se retiene con un multiplexor de 2 a 1 hecho con compuertas. Así, cuando no hay evento, <code>D = Q</code> y el estado se mantiene:</p>
+    <span class="eq">Di = EN·Fi + EN'·Qi        (i = 0..3)</span>
+    <p>Esta es la causa típica de que un contador con FF D "siga sumando solo": sin el término <code>EN'·Q</code>, el FF toma <code>F</code> en cada flanco de reloj.</p>
+
+    <h4>Pregunta guía 3 · Ecuación de la talanquera de entrada</h4>
+    <span class="eq">ME = SE · LLENO'</span>
+    <p>La talanquera abre solo si hay un vehículo frente al sensor de entrada y el parqueo no está lleno. Con <code>LLENO = 1</code>, el factor <code>LLENO'</code> vale 0 y fuerza <code>ME = 0</code>, sin importar el sensor.</p>
+
+    <h4>Display de 7 segmentos</h4>
+    <p>Las salidas <code>Q3..Q0</code> se unen en un bus de 4 bits (Q0 es el bit menos significativo) que entra a un display hexadecimal. Muestra de 0 a 9, y A, b, C para 10, 11 y 12. El enunciado admite hexadecimal o decimal.</p>
+    <figure><img src="img/pi_pieza1.png" alt="Captura de la Pieza 1 en Logisim con el contador en 12"><figcaption>Figura 6. Pieza 1 en Logisim durante la pregunta integradora: estado 1100, LLENO encendido y display en C.</figcaption></figure>
+  </article>
+
+  <!-- ---------- PIEZA 2 ---------- -->
+  <article class="card piece" id="pieza2">
+    <h3>Pieza 2 · Gestión y señalización por niveles</h3>
+    <p class="who">Responsable: Equipo Park-Tech GT · Archivo: <code>pieza2_niveles.circ</code> (original en Livewire: <code>FASE2_PROYECTO.lvw</code>)</p>
+    <p>Cada nivel tiene 4 espacios y su propio contador de 0 a 4, en el subcircuito <code>ContadorNivel</code>, que se repite tres veces. El enunciado define un solo sensor <code>SNx</code> por nivel. Como un solo sensor no indica la dirección del vehículo, se interpreta como dos señales: <code>SUBx</code> (entra al nivel) y <code>BAJx</code> (sale del nivel), ya limpias por la Pieza 4.</p>
+
+    <h4>Pregunta guía 1 · Contador del nivel con Flip-Flops D</h4>
+    <p>Se usan 3 Flip-Flops D (Q2 Q1 Q0), con <code>M = SUB</code>. Los estados 5, 6 y 7 son "no importa".</p>
+    <div class="tbl"><table>
+      <tr><th class="c">Estado</th><th class="c">Q2 Q1 Q0</th><th class="c">Sube (M=1)</th><th class="c">Baja (M=0)</th><th class="c">VERDE</th><th class="c">ROJO</th><th class="c">DISP</th></tr>
+      <tr><td class="c">0</td><td class="c">000</td><td class="c">001</td><td class="c">X</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
+      <tr><td class="c">1</td><td class="c">001</td><td class="c">010</td><td class="c">000</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
+      <tr><td class="c">2</td><td class="c">010</td><td class="c">011</td><td class="c">001</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
+      <tr><td class="c">3</td><td class="c">011</td><td class="c">100</td><td class="c">010</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
+      <tr><td class="c">4</td><td class="c">100</td><td class="c">X</td><td class="c">011</td><td class="c">0</td><td class="c">1</td><td class="c">0</td></tr>
+      <tr><td class="c">5–7</td><td class="c">101–111</td><td class="c">X</td><td class="c">X</td><td class="c">X</td><td class="c">X</td><td class="c">X</td></tr>
+    </table></div>
+    <figure><img src="img/p2_estados.png" alt="Diagrama de estados del contador de nivel"><figcaption>Figura 7. Diagrama de transición de estados del contador de nivel (0 a 4).</figcaption></figure>
+    <span class="eq">CERO  = Q2'·Q1'·Q0'
+SUBIR = SUB·BAJ'·Q2'        (no sube si el nivel está lleno)
+BAJAR = BAJ·SUB'·CERO'      (no baja de 0)
+EN    = SUBIR + BAJAR       M = SUB</span>
+    <figure><img src="img/p2_kmaps_F.png" alt="Mapas de Karnaugh de F2, F1 y F0 del contador de nivel"><figcaption>Figura 8. Mapas de Karnaugh del siguiente estado del contador de nivel.</figcaption></figure>
+    <span class="eq">F2 = M·Q1·Q0
+F1 = Q2 + M·Q1'·Q0 + M·Q1·Q0' + M'·Q1·Q0
+F0 = Q0'
+Di = EN·Fi + EN'·Qi</span>
+
+    <h4>Pregunta guía 2 · Decodificación de ROJON, VERDEN y DISPN</h4>
+    <figure><img src="img/p2_kmaps_rojo_cero.png" alt="Mapas de Karnaugh de ROJON y CERO"><figcaption>Figura 9. Gracias a los estados 5–7 marcados como X, ROJON se reduce a una sola variable.</figcaption></figure>
+    <span class="eq">ROJONx  = Q2              (el nivel tiene 4 vehículos)
+VERDENx = Q2'
+DISPNx  = Q2'             (1 = menos de 4 vehículos)</span>
+
+    <h4>Pregunta guía 3 · Tablero de la entrada principal</h4>
+    <p>El tablero recibe <code>DISPN1..3</code> y enciende una sola flecha: la del nivel libre más bajo. Así el conductor llega directo a un espacio libre sin recorrer niveles llenos. Si ningún nivel tiene espacio, se enciende "SIN ESPACIO", que coincide con <code>LLENO</code> de la Pieza 1.</p>
+    <div class="tbl"><table>
+      <tr><th class="c">DISPN1</th><th class="c">DISPN2</th><th class="c">DISPN3</th><th class="c">IR_N1</th><th class="c">IR_N2</th><th class="c">IR_N3</th><th class="c">SIN_ESPACIO</th></tr>
+      <tr><td class="c">1</td><td class="c">X</td><td class="c">X</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td class="c">0</td></tr>
+      <tr><td class="c">0</td><td class="c">1</td><td class="c">X</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">0</td></tr>
+      <tr><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">0</td></tr>
+      <tr><td class="c">0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td class="c">1</td></tr>
+    </table></div>
+    <span class="eq">IR_N1 = DISPN1
+IR_N2 = DISPN1'·DISPN2
+IR_N3 = DISPN1'·DISPN2'·DISPN3
+SIN_ESPACIO = DISPN1'·DISPN2'·DISPN3'</span>
+    <div class="grid2">
+      <figure><img src="img/pi_nivel1.png" alt="Subcircuito ContadorNivel del nivel 1 en estado 100"><figcaption>Figura 10. ContadorNivel del nivel 1 con 4 vehículos (100): ROJO = 1.</figcaption></figure>
+      <figure><img src="img/pi_pieza2.png" alt="Pieza 2 completa con los tres niveles llenos"><figcaption>Figura 11. Pieza 2 con los tres niveles llenos: los tres rojos encendidos y SIN_ESPACIO = 1.</figcaption></figure>
+    </div>
+  </article>
+
+  <!-- ---------- PIEZA 3 ---------- -->
+  <article class="card piece" id="pieza3">
+    <h3>Pieza 3 · Extracción y ventilación de emergencia por CO2</h3>
+    <p class="who">Responsable: Cristian Alexander González Castillo · Archivo: <code>Pieza3_Ventilacion.circ</code></p>
+    <p>Es un circuito puramente combinacional: no usa Flip-Flops ni <code>CLKSINC</code>. Por eso sus salidas responden en cuanto cambian los sensores y no dependen de ninguna otra pieza. Llamamos <b>N</b> al número de sensores que detectan gas.</p>
+    <div class="tbl"><table>
+      <tr><th>Condición</th><th class="c">V1</th><th class="c">V2</th><th class="c">ALARMA</th><th>Origen</th></tr>
+      <tr><td>N = 0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td>Enunciado</td></tr>
+      <tr><td>N = 1 o 2 y PGLOB = 1</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td>Enunciado</td></tr>
+      <tr><td>N = 1 y PGLOB = 0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td>Enunciado</td></tr>
+      <tr><td>N = 2 y PGLOB = 0</td><td class="c">0</td><td class="c">0</td><td class="c">0</td><td>Criterio del equipo: V1 exige PGLOB = 1</td></tr>
+      <tr><td>N ≥ 3</td><td class="c">0</td><td class="c">1</td><td class="c">1</td><td>Enunciado; V1 = 0 porque la velocidad alta reemplaza a la baja</td></tr>
+    </table></div>
+
+    <h4>Pregunta guía 1 · Tabla de verdad (5 variables)</h4>
+    <p>Orden de variables: <code>m = 16·C1 + 8·C2 + 4·C3 + 2·C4 + PGLOB</code>. Las 32 filas completas están en la memoria original de la pieza. En forma de mintérminos:</p>
+    <span class="eq">V1          = Σm(3, 5, 7, 9, 11, 13, 17, 19, 21, 25)
+V2 = ALARMA = Σm(14, 15, 22, 23, 26, 27, 28, 29, 30, 31)</span>
+
+    <h4>Pregunta guía 2 · Mapas de Karnaugh de 5 variables</h4>
+    <figure><img src="img/p3_kmap_v1.png" alt="Mapa de Karnaugh de V1 con seis grupos"><figcaption>Figura 12. V1: seis grupos de 2 celdas (T1 a T6). No hay grupos de 4, porque todos los unos tienen PGLOB = 1 y N = 1 o 2.</figcaption></figure>
+    <figure><img src="img/p3_kmap_v2.png" alt="Mapa de Karnaugh de V2 con cuatro grupos"><figcaption>Figura 13. V2 (= ALARMA): cuatro grupos de 4 celdas (U1 a U4).</figcaption></figure>
+    <span class="eq">V1 = PGLOB·(C1·C2'·C3' + C1'·C2·C3' + C2·C3'·C4' + C1'·C3·C4' + C2'·C3·C4' + C1'·C2'·C4)
+V2 = C1·C2·C3 + C1·C2·C4 + C1·C3·C4 + C2·C3·C4
+ALARMA = V2</span>
+
+    <h4>Pregunta guía 3 · Demostración con álgebra de Boole</h4>
+    <p>Para V2 se parte de la suma canónica. Primero se juntan los pares que solo cambian en PGLOB (complemento: <code>X + X' = 1</code>). Después, por idempotencia, se repite el término <code>C1C2C3C4</code> y se combina con cada uno de los otros:</p>
+    <span class="eq">m14+m15 = C1'C2C3C4      m22+m23 = C1C2'C3C4      m26+m27 = C1C2C3'C4
+m28+m29 = C1C2C3C4'      m30+m31 = C1C2C3C4
+C1C2C3C4' + C1C2C3C4 = C1C2C3·(C4'+C4) = C1·C2·C3   → U1
+C1C2C3'C4 + C1C2C3C4 = C1C2C4·(C3'+C3) = C1·C2·C4   → U2
+C1C2'C3C4 + C1C2C3C4 = C1C3C4·(C2'+C2) = C1·C3·C4   → U3
+C1'C2C3C4 + C1C2C3C4 = C2C3C4·(C1'+C1) = C2·C3·C4   → U4</span>
+    <p>Para V1 se hace lo mismo con los pares m17+m19, m9+m11, m9+m25, m5+m13, m5+m21 y m3+m7 (m9 y m5 se usan dos veces), y salen los seis términos T1 a T6. Cada término es una compuerta AND del circuito y la suma es la OR de salida. La tabla de verdad de Logisim coincide con la tabla teórica en las 32 combinaciones; el equipo la volvió a comprobar en el archivo integrado.</p>
+    <div class="grid2">
+      <figure><img src="img/p3_sim_3.png" alt="Caso: un sensor sin presencia, todo apagado"><figcaption>Figura 14. Caso B: C4 = 1 y PGLOB = 0, todo apagado.</figcaption></figure>
+      <figure><img src="img/pi_pieza3.png" alt="Pieza 3 con tres sensores activos"><figcaption>Figura 15. En el sistema integrado, C1 = C2 = C3 = 1 activa U1, y con eso V2 = ALARMA = 1.</figcaption></figure>
+    </div>
+  </article>
+
+  <!-- ---------- PIEZA 4 ---------- -->
+  <article class="card piece" id="pieza4">
+    <h3>Pieza 4 · Integración, reloj y simulación general</h3>
+    <p class="who">Responsable: Emilio García · Archivo: <code>pieza4_reloj_integracion.circ</code></p>
+    <p>Cada sensor físico pasa por el subcircuito <code>ACONDICIONADOR</code>, que hace tres cosas en orden: antirrebote, sincronización con el reloj y detección de flanco. Salen niveles limpios (<code>SE</code>) y pulsos de un ciclo (<code>PE, PS, SUBx, BAJx</code>).</p>
+
+    <h4>Reloj CLKSINC</h4>
+    <p>Un solo generador de reloj de 1 Hz alimenta a todos los Flip-Flops del sistema, que disparan en el mismo flanco de subida. En Logisim, el componente Clock cambia en cada tic, así que la frecuencia de tic se configura en 2 Hz para obtener 1 Hz.</p>
+
+    <h4>Pregunta guía 1 · Antirrebote con latch SR de compuertas NAND</h4>
+    <p>El sensor se modela como un contacto de dos posiciones: <code>NO</code> (vehículo presente) y <code>NC</code> (libre). Las entradas se invierten (<code>S' = NO'</code>, <code>R' = NC'</code>) y entran a dos NAND cruzadas. Mientras el contacto rebota, ninguna de las dos posiciones está activa, y el latch conserva su valor.</p>
+    <div class="tbl"><table>
+      <tr><th class="c">NO</th><th class="c">NC</th><th class="c">S'</th><th class="c">R'</th><th class="c">QL siguiente</th><th>Situación</th></tr>
+      <tr><td class="c">1</td><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">1</td><td>Vehículo presente (set)</td></tr>
+      <tr><td class="c">0</td><td class="c">1</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td>Sensor libre (reset)</td></tr>
+      <tr><td class="c">0</td><td class="c">0</td><td class="c">1</td><td class="c">1</td><td class="c">QL</td><td>Rebote: se mantiene</td></tr>
+      <tr><td class="c">1</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td class="c">—</td><td>No ocurre (contacto de dos posiciones)</td></tr>
+    </table></div>
+    <span class="eq">QL  = (S'·QL')'  = NAND(S', QL')
+QL' = (R'·QL)'   = NAND(R', QL)</span>
+
+    <h4>Sincronizador y detector de flanco</h4>
+    <span class="eq">A⁺ = QL       (FF A: sincroniza el sensor con CLKSINC → nivel limpio SE)
+B⁺ = A        (FF B: el mismo valor, un ciclo después)
+PULSO = A·B'  (1 solo en el primer ciclo en que el vehículo aparece)</span>
+    <p>Sin este detector, un vehículo que se queda 3 segundos frente al sensor sumaría 3 veces a 1 Hz. Con el detector suma una sola vez. En la simulación, un carro detenido 5 ciclos frente a SE incrementa el conteo exactamente en 1.</p>
+    <figure><img src="img/p4_tiempos.png" alt="Diagrama de tiempos del acondicionador de sensor"><figcaption>Figura 16. Diagrama de tiempos: los rebotes no pasan del latch, y el pulso dura un ciclo de reloj.</figcaption></figure>
+
+    <h4>Pregunta guía 2 · ¿Cómo se evitan las carreras de datos?</h4>
+    <ul>
+      <li><b>Un solo reloj y un solo flanco.</b> Todos los Flip-Flops de las Piezas 1, 2 y 4 reciben <code>CLKSINC</code> y disparan en el flanco de subida. No se usan relojes derivados ni compuertas en la línea de reloj, que provocarían desfases (<em>clock skew</em>).</li>
+      <li><b>Entradas sincronizadas.</b> Ningún sensor llega directo a un contador. Primero pasa por FF A, así que los contadores solo ven señales que cambian justo después de un flanco y tienen el ciclo completo para estabilizarse.</li>
+      <li><b>Pulsos de un ciclo.</b> <code>PE, PS, SUBx, BAJx</code> duran exactamente un periodo, y cada evento se cuenta una sola vez.</li>
+      <li><b>Conflictos resueltos por lógica.</b> Si <code>PE</code> y <code>PS</code> llegan en el mismo ciclo, <code>EN = 0</code> y el conteo se mantiene.</li>
+      <li><b>La ventilación no depende del reloj.</b> La Pieza 3 es combinacional, así que sus salidas no esperan un flanco.</li>
+    </ul>
+
+    <h4>Pregunta guía 3 · Panel de control central</h4>
+    <p>El archivo <code>integracion_parktech.circ</code> carga las cuatro piezas como bibliotecas. El panel tiene interruptores para los 8 sensores de paso, el reset, los 4 sensores de CO2 y PGLOB. Como indicadores muestra los LEDs de ME y LLENO, el display del conteo, los semáforos por nivel, el tablero y la ventilación, además de salidas de prueba con el valor de cada señal.</p>
+    <div class="grid2">
+      <figure><img src="img/pi_acond_se.png" alt="Subcircuito ACONDICIONADOR del sensor de entrada"><figcaption>Figura 17. ACONDICIONADOR del sensor de entrada, con un vehículo presente.</figcaption></figure>
+      <figure><img src="img/pi_pieza4.png" alt="Pieza 4 con los ocho acondicionadores"><figcaption>Figura 18. Pieza 4: reloj y ocho acondicionadores.</figcaption></figure>
+    </div>
+  </article>
+</section>
+
+<!-- ===================== 3. ARQUITECTURA ===================== -->
+<section id="arquitectura">
+  <div class="sechead"><span class="n">4</span><h2>Arquitectura integrada</h2></div>
+  <p>El diagrama muestra cómo se conectan los cuatro módulos y cómo se distribuye el reloj. Las líneas punteadas son <code>CLKSINC</code>. La Pieza 3 no recibe reloj.</p>
+  <div class="tbl card" style="padding:10px">
+  <svg viewBox="0 0 940 470" role="img" aria-label="Diagrama de bloques del sistema integrado" style="width:100%;min-width:680px;height:auto;font-family:var(--body)">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink)"/></marker></defs>
+    <g fill="none" stroke="var(--ink)" stroke-width="1.6">
+      <rect x="10" y="40" width="150" height="190" rx="8" fill="var(--code-bg)"/>
+      <rect x="10" y="300" width="150" height="130" rx="8" fill="var(--code-bg)"/>
+      <rect x="220" y="40" width="190" height="190" rx="8" fill="var(--paper)" stroke="var(--sign)" stroke-width="2.5"/>
+      <rect x="490" y="20" width="200" height="120" rx="8" fill="var(--paper)" stroke="var(--sign)" stroke-width="2.5"/>
+      <rect x="490" y="170" width="200" height="120" rx="8" fill="var(--paper)" stroke="var(--sign)" stroke-width="2.5"/>
+      <rect x="490" y="320" width="200" height="110" rx="8" fill="var(--paper)" stroke="var(--sign)" stroke-width="2.5"/>
+      <rect x="760" y="20" width="170" height="410" rx="8" fill="var(--code-bg)"/>
+    </g>
+    <g fill="var(--ink)" font-size="15" font-weight="600">
+      <text x="85" y="62" text-anchor="middle">Sensores de paso</text>
+      <text x="85" y="322" text-anchor="middle">Sensores de CO2</text>
+      <text x="315" y="64" text-anchor="middle">PIEZA 4</text>
+      <text x="590" y="44" text-anchor="middle">PIEZA 1</text>
+      <text x="590" y="194" text-anchor="middle">PIEZA 2</text>
+      <text x="590" y="344" text-anchor="middle">PIEZA 3</text>
+      <text x="845" y="44" text-anchor="middle">Panel maestro</text>
+    </g>
+    <g fill="var(--muted)" font-size="12.5">
+      <text x="22" y="90">SE, SS (entrada/salida)</text><text x="22" y="112">SUB1, BAJ1 (nivel 1)</text><text x="22" y="134">SUB2, BAJ2 (nivel 2)</text><text x="22" y="156">SUB3, BAJ3 (nivel 3)</text><text x="22" y="190">R (reset general)</text>
+      <text x="22" y="350">C1, C2, C3, C4</text><text x="22" y="372">PGLOB (presencia)</text>
+      <text x="232" y="88">Reloj base 1 Hz → CLKSINC</text><text x="232" y="112">8 × ACONDICIONADOR:</text><text x="244" y="132">latch SR NAND (antirrebote)</text><text x="244" y="152">FF A (sincronizador)</text><text x="244" y="172">FF B + AND (flanco)</text>
+      <text x="502" y="68">Contador 0–12 (4 FF D)</text><text x="502" y="90">LLENO = Q3·Q2</text><text x="502" y="112">ME = SE·LLENO'</text>
+      <text x="502" y="218">3 × ContadorNivel 0–4</text><text x="502" y="240">ROJO = Q2, VERDE = DISP = Q2'</text><text x="502" y="262">Tablero de nivel libre</text>
+      <text x="502" y="368">Combinacional (sin reloj)</text><text x="502" y="390">V1, V2, ALARMA = V2</text>
+      <text x="772" y="74">Talanquera ME</text><text x="772" y="96">Luz LLENO</text><text x="772" y="118">Display 0–C</text>
+      <text x="772" y="214">VERDEN1..3</text><text x="772" y="236">ROJON1..3</text><text x="772" y="258">IR_N1..3, SIN ESPACIO</text>
+      <text x="772" y="364">V1 (baja)</text><text x="772" y="386">V2 (alta)</text><text x="772" y="408">ALARMA</text>
+    </g>
+    <g stroke="var(--ink)" stroke-width="1.8" fill="none" marker-end="url(#ar)">
+      <path d="M160 135 H218"/>
+      <path d="M410 90 H488" /><path d="M410 200 H488"/>
+      <path d="M160 365 H488"/>
+      <path d="M690 80 H758"/><path d="M690 230 H758"/><path d="M690 375 H758"/>
+    </g>
+    <g stroke="var(--warn)" stroke-width="2" stroke-dasharray="6 4" fill="none" marker-end="url(#ar)">
+      <path d="M450 230 V280 H488"/><path d="M450 230 V128 H488"/>
+    </g>
+    <path d="M410 230 H450" stroke="var(--warn)" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+    <g font-size="12" fill="var(--ink)">
+      <text x="416" y="84">PE, PS, SE</text><text x="416" y="194">SUBx, BAJx</text><text x="414" y="248" fill="var(--warn)">CLKSINC</text>
+      <text x="300" y="358">C1..C4, PGLOB (directo)</text>
+    </g>
+  </svg>
+  </div>
+  <h4>Contrato de señales</h4>
+  <div class="tbl"><table>
+    <tr><th>Señal</th><th>La produce</th><th>La usa</th><th>Descripción</th></tr>
+    <tr><td><code>CLKSINC</code></td><td>Pieza 4</td><td>Piezas 1, 2 y 4</td><td>Reloj único de 1 Hz, flanco de subida</td></tr>
+    <tr><td><code>PE</code>, <code>PS</code>, <code>SE</code></td><td>Pieza 4</td><td>Pieza 1</td><td>Pulsos de entrada y salida, y nivel del sensor de entrada</td></tr>
+    <tr><td><code>SUB1..3</code>, <code>BAJ1..3</code></td><td>Pieza 4</td><td>Pieza 2</td><td>Pulsos de 1 ciclo: un vehículo sube o baja de cada nivel</td></tr>
+    <tr><td><code>R</code></td><td>Panel</td><td>Piezas 1 y 2</td><td>Reset general a 0</td></tr>
+    <tr><td><code>Q3..Q0</code>, <code>ME</code>, <code>LLENO</code></td><td>Pieza 1</td><td>Panel</td><td>Conteo, talanquera y luz de lleno</td></tr>
+    <tr><td><code>VERDENx</code>, <code>ROJONx</code>, <code>DISPNx</code>, <code>IR_Nx</code></td><td>Pieza 2</td><td>Panel</td><td>Semáforos, disponibilidad y tablero</td></tr>
+    <tr><td><code>C1..C4</code>, <code>PGLOB</code> → <code>V1</code>, <code>V2</code>, <code>ALARMA</code></td><td>Panel → Pieza 3</td><td>Panel</td><td>Ventilación de emergencia</td></tr>
+  </table></div>
+</section>
+
+<!-- ===================== 4. PREGUNTA INTEGRADORA ===================== -->
+<section id="pregunta">
+  <div class="sechead"><span class="n">5</span><h2>Pregunta integradora</h2></div>
+  <div class="card">
+    <p><b>Situación:</b> un vehículo entra al Nivel 1 (SN1 se activa), el contador global marca 12 (<code>LLENO = 1</code>) y al mismo tiempo se activan los sensores de gas C1, C2 y C3.</p>
+    <h4>Análisis teórico</h4>
+    <div class="tbl"><table>
+      <tr><th>Salida</th><th class="c">Estado</th><th>Justificación</th></tr>
+      <tr><td><code>ME</code></td><td class="c"><b>0</b></td><td><code>ME = SE·LLENO'</code>. Con <code>LLENO = 1</code>, el factor <code>LLENO'</code> vale 0 y la talanquera queda cerrada aunque haya un vehículo en el sensor.</td></tr>
+      <tr><td><code>VERDEN1</code></td><td class="c"><b>0</b></td><td>Con 12 vehículos, los tres niveles tienen 4, así que el nivel 1 está en 100: <code>ROJON1 = Q2 = 1</code> y <code>VERDEN1 = Q2' = 0</code>. El pulso <code>SUB1</code> no cambia el contador porque <code>SUBIR = SUB·BAJ'·Q2' = 0</code> (saturación).</td></tr>
+      <tr><td><code>V2</code></td><td class="c"><b>1</b></td><td>N = 3: el término <code>C1·C2·C3</code> (U1) vale 1, sin importar PGLOB.</td></tr>
+      <tr><td><code>ALARMA</code></td><td class="c"><b>1</b></td><td>Misma ecuación que V2.</td></tr>
+      <tr><td><code>V1</code></td><td class="c">0</td><td>Con 3 o más sensores solo trabaja la velocidad alta.</td></tr>
+    </table></div>
+    <h4>¿Por qué responde de forma síncrona sin bloquear la ventilación?</h4>
+    <p>Las Piezas 1 y 2 solo cambian en el flanco de subida de <code>CLKSINC</code>, y como están saturadas (en 12 y en 4) se mantienen en ese estado. La Pieza 3 no comparte ninguna señal con los contadores ni con el reloj. V2 y ALARMA se activan con el puro retardo de las compuertas, en el mismo instante en que cambian los sensores, sin esperar un flanco. En la simulación, los valores fueron idénticos justo al activar los sensores (antes de cualquier flanco) y después de 3 ciclos de reloj:</p>
+    <div class="tbl"><table>
+      <tr><th>Momento</th><th class="c">CONTEO</th><th class="c">ME</th><th class="c">LLENO</th><th class="c">VERDEN1</th><th class="c">ROJON1</th><th class="c">V1</th><th class="c">V2</th><th class="c">ALARMA</th></tr>
+      <tr><td>Antes del escenario (3 niveles llenos)</td><td class="c">12</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">0</td><td class="c">0</td></tr>
+      <tr><td>Al activar SE, SN1 y C1–C3 (sin flanco)</td><td class="c">12</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">1</td><td class="c">1</td></tr>
+      <tr><td>Después de 3 ciclos de CLKSINC</td><td class="c">12</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">1</td><td class="c">0</td><td class="c">1</td><td class="c">1</td></tr>
+    </table></div>
+    <figure><img src="img/int_pregunta_marcada.png" alt="Captura marcada del sistema integrado durante la pregunta integradora"><figcaption>Figura 19. Sistema integrado en Logisim durante la pregunta integradora, con las salidas marcadas.</figcaption></figure>
+    <div class="grid2">
+      <figure><img src="img/int_inicio.png" alt="Sistema integrado después del reset"><figcaption>Figura 20. Caso límite: después del reset (0 vehículos, el tablero indica el nivel 1).</figcaption></figure>
+      <figure><img src="img/int_lleno.png" alt="Sistema integrado con 12 vehículos"><figcaption>Figura 21. Caso límite: 12 vehículos (LLENO, los 3 rojos y SIN ESPACIO).</figcaption></figure>
+    </div>
+    <h4>Otros casos límite verificados</h4>
+    <ul>
+      <li>Un vehículo detenido 5 ciclos frente al sensor de entrada cuenta 1 vez.</li>
+      <li>14 entradas seguidas: el contador se queda en 12; 14 salidas seguidas: se queda en 0.</li>
+      <li>Entrada y salida en el mismo ciclo: el conteo no cambia.</li>
+      <li>Rebote del sensor (NO y NC en 0): el latch conserva su valor.</li>
+      <li>Pieza 1: 431 ciclos aleatorios comparados con un modelo de referencia, sin errores. Pieza 2: 327 ciclos, sin errores. Pieza 4: 600 ciclos, sin errores. Pieza 3: las 32 combinaciones correctas.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===================== 6. CONCLUSIONES Y RECOMENDACIONES ===================== -->
+<section id="recomendaciones">
+  <div class="sechead"><span class="n">6</span><h2>Conclusiones y recomendaciones</h2></div>
+  <h3>Conclusiones</h3>
+  <div class="concl">
+    <div class="card"><p class="lbl">Módulos independientes</p><p>Las cuatro piezas se diseñaron y probaron por separado y funcionaron juntas al primer intento de integración, porque los nombres y el significado de cada señal se acordaron desde el inicio.</p></div>
+    <div class="card"><p class="lbl">Un solo reloj</p><p>Todos los Flip-Flops D de las Piezas 1, 2 y 4 cambian en el mismo flanco de CLKSINC. No hay relojes derivados ni desfases entre módulos.</p></div>
+    <div class="card"><p class="lbl">Sensores confiables</p><p>El acondicionador (latch SR, sincronizador y detector de flanco) hace que cada vehículo se cuente una sola vez, aunque el sensor rebote o el carro se quede detenido.</p></div>
+    <div class="card"><p class="lbl">Secuencial y combinacional</p><p>La pregunta integradora lo demuestra: los contadores esperan el flanco del reloj, mientras que la ventilación reacciona en el mismo instante en que cambian los sensores.</p></div>
+  </div>
+  <h3>Recomendaciones</h3>
+  <ol class="recs">
+    <li><b>Mantener el acondicionador en cada sensor físico.</b> Al llevar el diseño a hardware, conviene usar sensores con contacto NO y NC (o sensores ópticos con salida digital) y conservar el antirrebote, para que el conteo no se altere por ruido o por un carro detenido.</li>
+    <li><b>Reiniciar el sistema al encenderlo.</b> Activar <code>R</code> al arrancar para que todos los contadores partan de un estado conocido (0 vehículos y los tres niveles en verde).</li>
+    <li><b>No colocar compuertas en la línea de reloj.</b> Cualquier ampliación debe usar el mismo <code>CLKSINC</code> y habilitar los Flip-Flops con lógica en la entrada D (como la retención <code>D = EN·F + EN'·Q</code>), nunca cortando el reloj.</li>
+    <li><b>Mostrar el conteo en decimal para el usuario final.</b> El display hexadecimal muestra 10, 11 y 12 como A, b y C. En una versión física se recomienda un convertidor binario a BCD y dos displays de 7 segmentos para que el conductor lea “12”.</li>
+    <li><b>Agregar un tiempo mínimo de ventilación.</b> La Pieza 3 apaga los extractores en cuanto bajan los sensores. Un temporizador o una histéresis en el umbral de CO2 evitaría que los ventiladores se enciendan y apaguen muchas veces seguidas.</li>
+    <li><b>Escalar por módulos.</b> Para agregar un cuarto nivel basta con otro <code>ContadorNivel</code> y extender el tablero con la misma regla de prioridad (<code>IR_N4 = DISPN1'·DISPN2'·DISPN3'·DISPN4</code>), y ampliar el contador global.</li>
+    <li><b>Probar cada pieza antes de integrar.</b> La simulación por separado de cada módulo (más de 1,300 ciclos y las 32 combinaciones de CO2, sin errores) fue lo que permitió una integración sin fallas. Se recomienda repetir esas pruebas después de cualquier cambio.</li>
+    <li><b>Abrir la simulación con todos los archivos juntos.</b> El archivo integrado carga las cuatro piezas como bibliotecas, así que los cinco archivos <code>.circ</code> deben estar en la misma carpeta.</li>
+  </ol>
+</section>
+
+<!-- ===================== 7. ARCHIVOS ===================== -->
+<section id="archivos">
+  <div class="sechead"><span class="n">7</span><h2>Archivos del proyecto</h2></div>
+  <div class="files">
+    <div class="file card"><p class="lbl">Simulación · Logisim</p><p>Sistema integrado, las cuatro piezas, LEEME y la versión original de la Pieza 2 en Livewire.</p><a class="btn prim" href="archivos/ParkTech_GT_Simulacion.zip" download>Descargar .zip</a></div>
+    <div class="file card"><p class="lbl">Informe · PDF</p><p>Memoria de cálculo completa: diagramas de estados, mapas de Karnaugh, ecuaciones y pruebas.</p><a class="btn prim" href="archivos/Informe_ParkTech_GT.pdf" download>Descargar PDF</a></div>
+    <div class="file card"><p class="lbl">Informe · Word</p><p>El mismo informe en formato editable.</p><a class="btn prim" href="archivos/Informe_ParkTech_GT.docx" download>Descargar .docx</a></div>
+    <div class="file card"><p class="lbl">Presentación · PowerPoint</p><p>Las 12 diapositivas con notas del orador.</p><a class="btn prim" href="archivos/Presentacion_ParkTech_GT.pptx" download>Descargar .pptx</a></div>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">Contenido de la simulación</h4>
+    <div class="tbl"><table>
+      <tr><th>Archivo</th><th>Contenido</th></tr>
+      <tr><td><code>integracion_parktech.circ</code></td><td>Sistema completo: abre las 4 piezas como bibliotecas</td></tr>
+      <tr><td><code>pieza1_conteo_global.circ</code></td><td>Contador 0–12, ME, LLENO, display</td></tr>
+      <tr><td><code>pieza2_niveles.circ</code></td><td>Contadores por nivel, semáforos y tablero</td></tr>
+      <tr><td><code>Pieza3_Ventilacion.circ</code></td><td>Ventilación por CO2</td></tr>
+      <tr><td><code>pieza4_reloj_integracion.circ</code></td><td>Reloj, ACONDICIONADOR y demo del antirrebote</td></tr>
+    </table></div>
+    <h4>Cómo ejecutarlo</h4>
+    <ol>
+      <li>Instale Logisim-evolution 3.9 o superior y descomprima la carpeta completa.</li>
+      <li>Abra <code>integracion_parktech.circ</code>.</li>
+      <li>En el menú Simular, ponga la frecuencia de tic en 2 Hz y active los tics (Ctrl+K).</li>
+      <li>Ponga <code>R</code> en 1 y luego en 0. Con la herramienta de mano, active <code>SE_RAW</code> y después <code>SUB1_RAW</code> para simular que entra un vehículo.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>Park-Tech GT · Electrónica Digital · Universidad Mariano Gálvez · 2026</footer>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  // ---------- Modelo (mismas ecuaciones que los .circ) ----------
+  const S={g:0,lv:[0,0,0],C:[0,0,0,0],PG:0,me:0};
+  const $=id=>document.getElementById(id);
+  const logEl=$("log");
+  function log(t){logEl.textContent=t+"\n"+logEl.textContent.split("\n").slice(0,12).join("\n");}
+  const LLENO=()=>S.g===12, CERO=()=>S.g===0;
+  // 7 segmentos hexadecimal
+  const SEGS={a:[8,4,44,8],b:[48,10,8,36],c:[48,54,8,36],d:[8,90,44,8],e:[0,54,8,36],f:[0,10,8,36],g:[8,47,44,8]};
+  const HEX=["abcdef","bc","abdeg","abcdg","bcfg","acdfg","acdefg","abc","abcdefg","abcdfg","abcefg","cdefg","adef"];
+  const segG=$("seg7");
+  for(const k in SEGS){const r=document.createElementNS("http://www.w3.org/2000/svg","rect");const[x,y,w,h]=SEGS[k];
+    r.setAttribute("x",x+2);r.setAttribute("y",y);r.setAttribute("width",w);r.setAttribute("height",h);r.setAttribute("rx",3);r.id="s_"+k;segG.appendChild(r);}
+  const lvBox=$("levels");
+  for(let k=0;k<3;k++){const d=document.createElement("div");d.className="lvl";
+    d.innerHTML=`<div class="t">Nivel ${k+1}</div><div class="slots" id="sl${k}"><b></b><b></b><b></b><b></b></div>
+    <div class="row" style="gap:10px"><span class="led g" id="V${k}"><i></i>VERDE</span><span class="led r" id="R${k}"><i></i>ROJO</span></div>
+    <div style="font-family:var(--mono);font-size:.78rem;color:#9fb2c8" id="q${k}">Q2Q1Q0 = 000</div>`;lvBox.appendChild(d);}
+  function led(id,on){$(id).classList.toggle("on",!!on);}
+  function render(){
+    const on=HEX[S.g];
+    for(const k in SEGS){$("s_"+k).setAttribute("fill",on.includes(k)?"#ff4d4d":"#2a1416");}
+    $("T_CNT").textContent=S.g;$("T_BIN").textContent=S.g.toString(2).padStart(4,"0");
+    led("L_ME",S.me);led("L_LLENO",LLENO());
+    const disp=S.lv.map(v=>v<4);
+    for(let k=0;k<3;k++){[...$("sl"+k).children].forEach((b,i)=>b.classList.toggle("f",i<S.lv[k]));
+      led("V"+k,disp[k]);led("R"+k,!disp[k]);$("q"+k).textContent="Q2Q1Q0 = "+S.lv[k].toString(2).padStart(3,"0");}
+    led("L_IR1",disp[0]);led("L_IR2",!disp[0]&&disp[1]);led("L_IR3",!disp[0]&&!disp[1]&&disp[2]);led("L_SE",!disp[0]&&!disp[1]&&!disp[2]);
+    const N=S.C.reduce((a,b)=>a+b,0);const V2=N>=3;const V1=!!S.PG&&(N===1||N===2);
+    led("L_V1",V1);led("L_V2",V2);led("L_AL",V2);
+    ["g1","g2","g3","g4"].forEach((id,i)=>$(id).setAttribute("aria-pressed",S.C[i]?"true":"false"));
+    $("gp").setAttribute("aria-pressed",S.PG?"true":"false");
+  }
+  function lowestFree(){for(let k=0;k<3;k++) if(S.lv[k]<4) return k; return -1;}
+  function subNivel(k){ // pulso SUBk: SUBIR = SUB·BAJ'·Q2'
+    if(S.lv[k]<4){S.lv[k]++;return true;} return false;}
+  function carIn(){
+    if(LLENO()){S.me=0;render();log("Llega un carro: LLENO = 1 → ME = SE·LLENO' = 0. Talanquera cerrada; el conteo se queda en 12.");return;}
+    S.me=1;S.g++;const k=lowestFree();subNivel(k);render();
+    log(`Llega un carro: PE = 1 y ME = 1, el conteo pasa a ${S.g}. El tablero indicaba el nivel ${k+1} (SUB${k+1}).`);
+    setTimeout(()=>{S.me=0;render();},900);
+  }
+  function carOut(k){
+    if(S.lv[k]===0){log(`Nivel ${k+1} vacío: BAJAR = BAJ·SUB'·CERO' = 0, no cambia.`);return;}
+    S.lv[k]--;S.g--;S.me=0;render();log(`Sale un carro del nivel ${k+1} (BAJ${k+1} y luego PS): conteo = ${S.g}.`);
+  }
+  $("b_in").addEventListener("click",carIn);
+  [0,1,2].forEach(k=>$("b_o"+(k+1)).addEventListener("click",()=>carOut(k)));
+  ["g1","g2","g3","g4"].forEach((id,i)=>$(id).addEventListener("click",()=>{S.C[i]^=1;render();
+    const N=S.C.reduce((a,b)=>a+b,0);log(`C${i+1} = ${S.C[i]} → N = ${N}. La Pieza 3 responde al instante, sin esperar el reloj.`);}));
+  $("gp").addEventListener("click",()=>{S.PG^=1;render();log(`PGLOB = ${S.PG}.`);});
+  $("b_rst").addEventListener("click",()=>{S.g=0;S.lv=[0,0,0];S.C=[0,0,0,0];S.PG=0;S.me=0;render();log("Reset (R = 1 → 0): todo en 0.");});
+  $("b_pi").addEventListener("click",()=>{
+    S.g=12;S.lv=[4,4,4];S.C=[1,1,1,0];S.PG=0;S.me=0;subNivel(0);render();
+    log("Pregunta integradora: conteo = 12 (LLENO = 1), SN1 activo y C1 = C2 = C3 = 1.\n→ ME = 0 · VERDEN1 = 0 (ROJON1 = 1; SUB1 no cambia el nivel lleno) · V2 = 1 · ALARMA = 1 · V1 = 0");
+  });
+  render();
+
+  // ---------- Presentación ----------
+  const N_SL=12; let cur=0;
+  const sImg=$("slideImg"),sNum=$("sNum"),th=$("thumbs");
+  const src=i=>"img/slides/d-"+String(i+1).padStart(2,"0")+".jpg";
+  for(let i=0;i<N_SL;i++){const b=document.createElement("button");b.className="th";b.setAttribute("aria-label","Diapositiva "+(i+1));
+    b.innerHTML=`<img src="${src(i)}" alt="" loading="lazy" width="160" height="90">`;b.addEventListener("click",()=>show(i));th.appendChild(b);}
+  function show(i){cur=(i+N_SL)%N_SL;sImg.src=src(cur);sImg.alt="Diapositiva "+(cur+1)+" de "+N_SL;sNum.textContent=(cur+1)+" / "+N_SL;
+    [...th.children].forEach((b,k)=>b.setAttribute("aria-current",k===cur?"true":"false"));}
+  $("sPrev").addEventListener("click",()=>show(cur-1));$("sNext").addEventListener("click",()=>show(cur+1));
+  document.querySelector(".stage").addEventListener("keydown",e=>{if(e.key==="ArrowRight")show(cur+1);if(e.key==="ArrowLeft")show(cur-1);});
+  show(0);
+
+})();
+</script>
+
+</body>
+</html>
